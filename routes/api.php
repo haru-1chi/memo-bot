@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\TelegramController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -17,3 +17,12 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+Route::prefix('telegram/webhooks')->group(function () {
+    Route::post('inbound', function (Request $request) {
+        \Log::info($request->all());
+    });
+
+    Route::post('inbound',[TelegramController::class, 'inbound'])->name('telegram.inbound');
+});
+
+//https://api.telegram.org/bot6691928017:AAHspEazonN6A_IO0O-4KzAgnt90TVsp89Q/setWebhook?url=https://5dfa-58-136-105-13.ngrok-free.app/api/telegram/webhooks/inbound
