@@ -207,8 +207,7 @@ class TelegramController extends Controller
         $reply_to_message = $request->message['message_id'] ?? null;
 
         if (cache()->has("chat_id_{$chat_id}_edit_user_info")) {
-            $userInformationLines = explode("\n", $request->message['text']); //explode as array
-
+            $userInformationLines = explode("\n", $request->message['text']);
             if (count($userInformationLines) >= 2) {
                 $number = trim($userInformationLines[0]);
                 $textUpdate = trim($userInformationLines[1]);
