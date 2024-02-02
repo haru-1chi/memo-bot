@@ -25,7 +25,9 @@ class User extends Authenticatable
         'student_id',
         'phone_number',
         'faculty',
-        'company'
+        'company',
+        'memo_time',
+        'summary_time'
     ];
 
     /**
