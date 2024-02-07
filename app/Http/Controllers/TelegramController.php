@@ -358,7 +358,8 @@ class TelegramController extends Controller
 
                     if (!empty($currentMemo)) {
                         $formattedMemo = implode(', ', $currentMemo);
-                        Memo::where('user_id', $chat_id)->update(['memo' => $formattedMemo,]);
+                        $currentDate = now()->toDateString();
+                        Memo::where('user_id', $chat_id)->where('memo_date', $currentDate)->update(['memo' => $formattedMemo,]);
                         $text_reply = "บันทึกงานประจำวันของวันนี้เรียบร้อยแล้วค่ะ!";
                     } else {
                         $text_reply = "ไม่มีงานประจำวันที่จะบันทึกในขณะนี้ค่ะ!";
@@ -420,7 +421,8 @@ class TelegramController extends Controller
 
                     if (!empty($currentMemo)) {
                         $formattedMemo = implode(', ', $currentMemo);
-                        Memo::where('user_id', $chat_id)->update(['memo' => $formattedMemo,]);
+                        $currentDate = now()->toDateString();
+                        Memo::where('user_id', $chat_id)->where('memo_date', $currentDate)->update(['memo' => $formattedMemo,]);
                         $text_reply = "บันทึกงานประจำวันของวันนี้เรียบร้อยแล้วค่ะ!";
                     } else {
                         $text_reply = "ไม่มีงานประจำวันที่จะบันทึกในขณะนี้ค่ะ!";
@@ -442,62 +444,53 @@ class TelegramController extends Controller
             return $this->resetMemoDairy($request);
         }
 
-        // if ($request->message['text'] === '/notetoday') {
-        //     $text = "สามารถพิมพ์ข้อความใดๆเพื่อเพิ่มหมายเหตุได้เลยค่ะ\n";
-        //     $text .= "ยกตัวอย่าง ‘วันหยุดปีใหม่’\n";
-        //     $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
-        //     cache()->put("chat_id_{$chat_id}_startNoteMemoDairy", true, now()->addMinutes(60));
-        //     return $this->noteMemoDairy($request);
-        // }
-
         if ($request->message['text'] === '/notetoday') {
             $text = "สามารถพิมพ์ข้อความใดๆเพื่อเพิ่มหมายเหตุได้เลยค่ะ\n";
             $text .= "ยกตัวอย่าง ‘วันหยุดปีใหม่’\n";
-            cache()->put("chat_id_{$chat_id}_startNoteMemoDairy", true, now()->addMinutes(60));
+            cache()->put("chat_id_{$chat_id}_startNoteMemoDairy", 'waiting_for_command', now()->addMinutes(60));
             $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
             return response()->json($result, 200);
+
         }
 
         if (cache()->has("chat_id_{$chat_id}_startNoteMemoDairy")) {
-            return $this->confirmNoteMemo($request);
-        }
+            $step = cache()->get("chat_id_{$chat_id}_startNoteMemoDairy");
+            if ($step === 'waiting_for_command') {
+                $notetoday = $request->message['text'];
 
-        // if (cache()->has("chat_id_{$chat_id}_startNoteMemoDairy")) {
-        //     $step = cache()->get("chat_id_{$chat_id}_startNoteMemoDairy");
-        //     if ($step === 'waiting_for_command') {
-        //         $memoMessage = $request->message['text'];
-        //         cache()->put("chat_id_{$chat_id}_noteMemoDaily", $memoMessage, now()->addMinutes(60));
-        //         cache()->put("chat_id_{$chat_id}_startNoteMemoDairy", 'waiting_for_time', now()->addMinutes(60));
-        //     } elseif ($step === 'waiting_for_time') {
-        //         $memoMessage = cache()->get("chat_id_{$chat_id}_noteMemoDaily");
-        //         $reply_to_message = $request->message['message_id'];
-        //         $text = "หมายเหตุของวันนี้:\n";
-        //         $text .= "{$memoMessage}\nถูกต้องมั้ยคะ?";  
-        //         $text .= "(กรุณาตอบ yes หรือ /cancel)\n";
-        //         cache()->forget("chat_id_{$chat_id}_startMemoDairy");
-        //         app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
-        //         return $this->handleNoteMemoConfirmation($request);
-        //     }
+                $text = "หมายเหตุของวันนี้:\n";
+                $text .= "{$notetoday}\nถูกต้องมั้ยคะ?";
+                $text .= "(กรุณาตอบ yes หรือ /cancel)\n";
+                cache()->put("chat_id_{$chat_id}_startNoteMemoDairy", 'confirm', now()->addMinutes(60));
+                cache()->put("chat_id_{$chat_id}_noteToday", $notetoday, now()->addMinutes(60));
+                $reply_to_message = $request->message['message_id'];
+                $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
 
-        // }
-    }
-    public function confirmNoteMemo(Request $request)
-    {
-        $chat_id = $request->message['from']['id'] ?? null;
-        $reply_to_message = $request->message['message_id'] ?? null;
-        if (cache()->has("chat_id_{$chat_id}_startNoteMemoDairy")) {
-            $noteMemo = $request->message['text'];
-            $text = "หมายเหตุของวันนี้:\n";
-            $text .= "{$noteMemo}\nถูกต้องมั้ยคะ?";
-            $text .= "(กรุณาตอบ yes หรือ /cancel)\n";
-            app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
-            cache()->put("chat_id_{$chat_id}_noteMemoDairy", $noteMemo, now()->addMinutes(10));
-            cache()->forget("chat_id_{$chat_id}_startNoteMemoDairy");
-        }
-        if (cache()->has("chat_id_{$chat_id}_noteMemoDairy")) {
-            return $this->handleNoteMemoConfirmation($request);
-        }
+            } elseif ($step === 'confirm') {
+                $confirmationText = 'yes';
+                $text_reply = '';
+                $text = $request->message['text'];
+                if ($text === $confirmationText) {
+                    $currentNoteToday = cache()->get("chat_id_{$chat_id}_noteToday");
 
+                    if (!empty($currentNoteToday)) {
+                        $currentDate = now()->toDateString();
+                        Memo::where('user_id', $chat_id)->where('memo_date', $currentDate)->update(['note_today' => $currentNoteToday]);
+                        $text_reply = "บันทึกหมายเหตุของวันนี้เรียบร้อยแล้วค่ะ!";
+                    } else {
+                        $text_reply = "ไม่มีหมายเหตุที่จะบันทึกในขณะนี้ค่ะ!";
+                    }
+
+                    app('telegram_bot')->sendMessage($text_reply, $chat_id, $reply_to_message);
+                } elseif ($text === '/cancel') {
+                    app('telegram_bot')->sendMessage("ยกเลิกการ /notetoday", $chat_id, $reply_to_message);
+                } else {
+                    app('telegram_bot')->sendMessage("กรุณาตอบด้วย 'yes' หรือ '/cancel' เท่านั้นค่ะ", $chat_id, $reply_to_message);
+                }
+                cache()->forget("chat_id_{$chat_id}_startNoteMemoDairy");
+                cache()->forget("chat_id_{$chat_id}_noteToday");
+            }
+        }
     }
 
 
@@ -885,30 +878,10 @@ class TelegramController extends Controller
     }
 
     //memo
-    private function handleNoteMemoConfirmation(Request $request)
-    {
-        $chat_id = $request->message['from']['id'] ?? null;
-        $reply_to_message = $request->message['message_id'] ?? null;
-        $text = strtolower(trim($request->input('message.text')));
-        $confirmationText = 'yes';
-        $text_reply = '';
-        if ($text === $confirmationText) {
-            $noteMemoToday = cache()->get("chat_id_{$chat_id}_noteMemoDairy");
-            // User::where('telegram_chat_id', $chat_id)->update(['memo_time' => $setReminderTime['time']]); //แก้ table ตรงนี้
-            $text_reply = "บันทึกหมายเหตุของวันนี้เรียบร้อยแล้วค่ะ!";
-            $text_reply .= "{$noteMemoToday}";
-            app('telegram_bot')->sendMessage($text_reply, $chat_id, $reply_to_message);
-            cache()->forget("chat_id_{$chat_id}_noteMemoDairy");
-        } elseif ($text === '/cancel') {
-            app('telegram_bot')->sendMessage("ยกเลิกการ /notetoday", $chat_id, $reply_to_message);
-            cache()->forget("chat_id_{$chat_id}_noteMemoDairy");
-        } else {
-            app('telegram_bot')->sendMessage("กรุณาตอบด้วย 'yes' หรือ '/cancel' เท่านั้นค่ะ", $chat_id, $reply_to_message);
-        }
-    }
     public function getUserMemo($telegram_chat_id)
     {
-        $userMemo = Memo::where('user_id', $telegram_chat_id)->first();
+        $currentDate = now()->toDateString();
+        $userMemo = Memo::where('user_id', $telegram_chat_id)->where('memo_date', $currentDate)->first();
         return $userMemo;
     }
 }

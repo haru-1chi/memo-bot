@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreign('user_id')->references('telegram_chat_id')->on('users');
             $table->string('memo')->nullable();
             $table->string('note_today')->nullable();
-            $table->date('memo_date')->nullable();
+            $table->date('memo_date')->unique()->nullable();
             $table->timestamps();
         });
     }
