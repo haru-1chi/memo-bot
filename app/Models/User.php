@@ -24,7 +24,7 @@ class User extends Authenticatable
         'telegram_chat_id',
         'student_id',
         'phone_number',
-        'faculty',
+        'branch',
         'company',
         'memo_time',
         'summary_time'
@@ -49,4 +49,9 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    public function memos()
+    {
+        return $this->hasMany(Memo::class);
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\Console;
 
 use App\Console\Commands\SendMemoMessages;
+use App\Console\Commands\SendSummaryMessages;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use App\Models\User;
@@ -17,9 +18,16 @@ class Kernel extends ConsoleKernel
         $users = User::whereNotNull('telegram_chat_id')->get();
         foreach ($users as $user) {
             $memoTime = Carbon::createFromFormat('H:i:s', $user->memo_time);
-            $hourAndMinute = $memoTime->format('H:i');
-            $schedule->command('send:memo-messages')->dailyAt($hourAndMinute);
+            $memoHourAndMinute = $memoTime->format('H:i');
+            $schedule->command('send:memo-messages')->dailyAt($memoHourAndMinute);
+        
+            $summaryTime = Carbon::createFromFormat('H:i:s', $user->summary_time);
+            $summaryHourAndMinute = $summaryTime->format('H:i');
+            $schedule->command('send:summary-messages')->dailyAt($summaryHourAndMinute);
         }
+
+            
+        
     }
     
     /**
