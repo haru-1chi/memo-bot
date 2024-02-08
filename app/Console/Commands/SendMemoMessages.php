@@ -45,16 +45,24 @@ class SendMemoMessages extends Command
         if ($currentTime->isWeekday()) {
             $users = User::whereNotNull('telegram_chat_id')->get();
             foreach ($users as $user) {
-                $memoTime = Carbon::createFromFormat('H:i:s', $user->memo_time)->format('H:i');
-                $currentTimeFormatted = $currentTime->format('H:i');
+                if ($user->memo_time) {
+                    $memoTime = Carbon::createFromFormat('H:i:s', $user->memo_time)->format('H:i');
+                    $currentTimeFormatted = $currentTime->format('H:i');
 
-                if ($currentTimeFormatted === $memoTime) {
-                    $text = "วันนี้อย่าลืมจดบันทึกงานประจำวันด้วยนะ\n";
-                    $text .= "กรุณาพิมพ์ /memo เพื่อเริ่มจดบันทึก\n\n";
-                    $text .= "หรือหากวันนี้ลาหยุด หรือเป็นวันหยุดราชการ ให้พิมพ์ /notetoday เพื่อเพิ่มหมายเหตุวันนี้\n";
+                    if ($currentTimeFormatted === $memoTime) {
+                        $text = "วันนี้อย่าลืมจดบันทึกงานประจำวันด้วยนะ\n";
+                        $text .= "กรุณาพิมพ์ /memo เพื่อเริ่มจดบันทึก\n\n";
+                        $text .= "หรือหากวันนี้ลาหยุด หรือเป็นวันหยุดราชการ ให้พิมพ์ /notetoday เพื่อเพิ่มหมายเหตุวันนี้\n";
+                        $this->sendMessageToUser($user->telegram_chat_id, $text);
+                    }
+                } else {
+                    $text = "นี่เป็นข้อความแจ้งเตือนให้จดบันทึกประจำวันเบื้องต้น\n";
+                    $text .= "กรุณา /setreminder เพื่อตั้งค่าการแจ้งเตือน\n\n";
+                    $text .= "อย่าลืมตั้งค่าเวลาแจ้งเตือนบันทึกประจำวันด้วยนะ\n";
                     $this->sendMessageToUser($user->telegram_chat_id, $text);
                 }
             }
+
         }
 
         return 0;

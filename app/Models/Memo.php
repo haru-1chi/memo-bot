@@ -17,7 +17,7 @@ class Memo extends Model
     protected $fillable = [
         'user_id',
         'memo',
-        'notetoday',
+        'note_today',
         'memo_date',
     ];
 
