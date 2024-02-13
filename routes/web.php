@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\WordController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -15,4 +15,15 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
+});
+
+Route::get('/test-render', [WordController::class, 'testRender']);
+Route::get('/downloadDocx', [WordController::class, 'downloadDocx']);
+
+Route::get('/doc-generate',function(){
+    $headers = array(
+        'Content-type'=>'text/html',
+        'Content-Disposition'=>'attatchement;Filename=mydoc.docx'
+    );
+    return \Response::make(view('word-summary'), 200,$headers);
 });

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use PhpOffice\PhpWord\PhpWord;
+use PhpOffice\PhpWord\IOFactory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use App\Models\User;
@@ -796,9 +798,51 @@ class TelegramController extends Controller
                 cache()->forget("chat_id_{$chat_id}_noteToday");
             }
         }
+
+        // if ($request->message['text'] === '/getdocumentfile') {
+        //     // Generate the document based on the current week number
+        //     $weekNumber = Carbon::now()->weekOfYear;
+        //     $memos = Memo::all();
+        //     $documentPath = $this->generateDocument($weekNumber, $memos);
+
+        //     // Replace 'your_chat_id' with the actual chat ID of the user
+        //     $chatId = $chat_id;
+
+        //     // Send the generated document
+        //     $result = $this->telegramBotService->sendDocument($chatId, $documentPath, 'Memo document for week ' . $weekNumber);
+
+        //     // Handle the result as needed
+        //     if ($result['success']) {
+        //         // Document sent successfully
+        //     } else {
+        //         // Document sending failed
+        //     }
+        // }
     }
 
 
+//     public function generateDocument($weekNumber, $memos)
+// {
+//     // Load PhpWord
+//     $phpWord = new PhpWord();
+
+//     // Add a new section
+//     $section = $phpWord->addSection();
+
+//     // Render the Blade view to HTML
+//     $html = view('word-summary', compact('weekNumber', 'memos'))->render();
+
+//     // Add the HTML content to the section
+//     \PhpOffice\PhpWord\Shared\Html::addHtml($section, $html, false, false);
+
+//     // Save the document
+//     $fileName = "memo_week.docx";
+//     $objWriter = IOFactory::createWriter($phpWord, 'Word2007');
+//     $objWriter->save($fileName);
+
+//     return $fileName;
+// }
+    //memo
     public function editMemoDairy(Request $request)
     {
         $chat_id = $request->message['from']['id'];
