@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use PhpOffice\PhpWord\PhpWord;
-use PhpOffice\PhpWord\IOFactory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
+use PhpOffice\PhpWord\TemplateProcessor;
+use PhpOffice\PhpWord\Element\Section;
+use PhpOffice\PhpWord\PhpWord;
 use App\Models\User;
 use App\Models\Memo;
 use Illuminate\Http\Request;
@@ -799,50 +800,54 @@ class TelegramController extends Controller
             }
         }
 
-        // if ($request->message['text'] === '/getdocumentfile') {
-        //     // Generate the document based on the current week number
-        //     $weekNumber = Carbon::now()->weekOfYear;
-        //     $memos = Memo::all();
-        //     $documentPath = $this->generateDocument($weekNumber, $memos);
-
-        //     // Replace 'your_chat_id' with the actual chat ID of the user
-        //     $chatId = $chat_id;
-
-        //     // Send the generated document
-        //     $result = $this->telegramBotService->sendDocument($chatId, $documentPath, 'Memo document for week ' . $weekNumber);
-
-        //     // Handle the result as needed
-        //     if ($result['success']) {
-        //         // Document sent successfully
-        //     } else {
-        //         // Document sending failed
-        //     }
-        // }
+        if ($request->message['text'] === '/generateDoc') {
+            $documentPath = $this->generateDocument($request);
+            $result = app('telegram_bot')->sendDocument($chat_id, $documentPath);
+            // $result = app('telegram_bot')->sendDocument($chat_id, "C:".DIRECTORY_SEPARATOR."xampp\htdocs\memo-bot\public\word-send\memo.docx");
+            return response()->json($result, 200);
+        }
     }
 
+    public function generateDocument(Request $request)
+    {
+        $templateProcessor = new TemplateProcessor('word-template/user.docx');
+        $chat_id = $request->message['from']['id'];
+        $userInfo = $this->getUserInfo($chat_id);
+        $memos = Memo::where('user_id', $chat_id)->get();
+        $currentWeekStartDate = null;
+        $currentWeekNumber = 0;
+        foreach ($memos as $memo) {
+            $memoDate = Carbon::parse($memo->memo_date);
+            if (!$currentWeekStartDate || !$memoDate->isSameWeek($currentWeekStartDate, Carbon::MONDAY)) {
+                $currentWeekStartDate = $memoDate;
+                $currentWeekNumber++;
+            }
+            $weekdayIndex = $memoDate->dayOfWeekIso;
+            $templateProcessor->setValue("number_of_week", $currentWeekNumber);
+            $templateProcessor->setValue("memo_date_$weekdayIndex", $memo->memo_date);
+            $templateProcessor->setValue("memo[0]_$weekdayIndex", $this->getMemo($memo->memo, 0));
+            $templateProcessor->setValue("memo[1]_$weekdayIndex", $this->getMemo($memo->memo, 1));
+            $templateProcessor->setValue("memo[2]_$weekdayIndex", $this->getMemo($memo->memo, 2));
+            $templateProcessor->setValue("memo[3]_$weekdayIndex", $this->getMemo($memo->memo, 3));
+            $templateProcessor->setValue("memo[4]_$weekdayIndex", $this->getMemo($memo->memo, 4));
+            $templateProcessor->setValue("note_today_$weekdayIndex", $memo->note_today);
+        }
+        $directory = 'word-send';
+        $fileName = $userInfo['student_id'].'_week'.$currentWeekNumber.'_memo.docx';
+        $filePath = public_path($directory . DIRECTORY_SEPARATOR . $fileName);
+    
+        if (!file_exists(public_path($directory))) {
+            mkdir(public_path($directory), 0777, true);
+        }
+        $templateProcessor->saveAs($filePath);
+        return $filePath;
+    }
 
-//     public function generateDocument($weekNumber, $memos)
-// {
-//     // Load PhpWord
-//     $phpWord = new PhpWord();
-
-//     // Add a new section
-//     $section = $phpWord->addSection();
-
-//     // Render the Blade view to HTML
-//     $html = view('word-summary', compact('weekNumber', 'memos'))->render();
-
-//     // Add the HTML content to the section
-//     \PhpOffice\PhpWord\Shared\Html::addHtml($section, $html, false, false);
-
-//     // Save the document
-//     $fileName = "memo_week.docx";
-//     $objWriter = IOFactory::createWriter($phpWord, 'Word2007');
-//     $objWriter->save($fileName);
-
-//     return $fileName;
-// }
-    //memo
+    private function getMemo($memo, $index)
+    {
+        $memoArray = explode(',', $memo);
+        return isset($memoArray[$index]) ? trim($memoArray[$index]) : '……………………………………………………………………………………';
+    }
     public function editMemoDairy(Request $request)
     {
         $chat_id = $request->message['from']['id'];

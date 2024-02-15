@@ -56,7 +56,7 @@ class WordController extends Controller
     {
         $templateProcessor = new TemplateProcessor('word-template/user.docx');
     
-        $memos = Memo::all();
+        $memos = Memo::where('user_id', '6810241495')->get();
         $currentWeekStartDate = null;
         $currentWeekNumber = 0;
         foreach ($memos as $memo) {
