@@ -23,8 +23,8 @@ class TelegramController extends Controller
     public function inbound(Request $request)
     {
         \Log::info($request->all());
-        $chat_id = $request->message['from']['id'];
-        $reply_to_message = $request->message['message_id'];
+        $chat_id = $request->message['from']['id'] ?? null;
+        $reply_to_message = $request->message['message_id'] ?? null;
         \Log::info("chat_id: {$chat_id}");
         \Log::info("reply_to_message: {$reply_to_message}");
 
@@ -129,7 +129,7 @@ class TelegramController extends Controller
                     $text .= "1. {$columnName[$selectedIndex]}\n";
                     cache()->put("chat_id_{$chat_id}_startEdit_userinfo", 'updated', now()->addMinutes(60));
                     cache()->put("chat_id_{$chat_id}_select_choice_edit", $selectedIndex, now()->addMinutes(60));
-                    $reply_to_message = $request->message['message_id'];
+                    $reply_to_message = $request->message['message_id'] ?? null;
                     $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
 
                     return response()->json($result, 200);
@@ -231,7 +231,7 @@ class TelegramController extends Controller
                     $text .= "ยกตัวอย่าง <10:00>\n";
                     cache()->put("chat_id_{$chat_id}_setreminder", 'waiting_for_time', now()->addMinutes(60));
                     cache()->put("chat_id_{$chat_id}_select_type", '/formemo', now()->addMinutes(60));
-                    $reply_to_message = $request->message['message_id'];
+                    $reply_to_message = $request->message['message_id'] ?? null;
                     $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
 
                     return response()->json($result, 200);
@@ -242,7 +242,7 @@ class TelegramController extends Controller
                     $text .= "ยกตัวอย่าง <10:00>\n";
                     cache()->put("chat_id_{$chat_id}_setreminder", 'waiting_for_time', now()->addMinutes(60));
                     cache()->put("chat_id_{$chat_id}_select_type", '/forsummary', now()->addMinutes(60));
-                    $reply_to_message = $request->message['message_id'];
+                    $reply_to_message = $request->message['message_id'] ?? null;
                     $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
 
                     return response()->json($result, 200);
@@ -298,7 +298,7 @@ class TelegramController extends Controller
                     $text .= "ยกตัวอย่าง <10:00>\n";
                     cache()->put("chat_id_{$chat_id}_editreminder", 'waiting_for_time', now()->addMinutes(60));
                     cache()->put("chat_id_{$chat_id}_select_type_edit", '/formemo', now()->addMinutes(60));
-                    $reply_to_message = $request->message['message_id'];
+                    $reply_to_message = $request->message['message_id'] ?? null;
                     $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
 
                     return response()->json($result, 200);
@@ -309,7 +309,7 @@ class TelegramController extends Controller
                     $text .= "ยกตัวอย่าง <10:00>\n";
                     cache()->put("chat_id_{$chat_id}_editreminder", 'waiting_for_time', now()->addMinutes(60));
                     cache()->put("chat_id_{$chat_id}_select_type_edit", '/forsummary', now()->addMinutes(60));
-                    $reply_to_message = $request->message['message_id'];
+                    $reply_to_message = $request->message['message_id'] ?? null;
                     $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
 
                     return response()->json($result, 200);
@@ -593,7 +593,7 @@ class TelegramController extends Controller
                     $text .= "'Create function CRUD'\n";
                     cache()->put("chat_id_{$chat_id}_editMemoDairy", 'updated', now()->addMinutes(60));
                     cache()->put("chat_id_{$chat_id}_select_choice_edit", $selectedIndex, now()->addMinutes(60));
-                    $reply_to_message = $request->message['message_id'];
+                    $reply_to_message = $request->message['message_id'] ?? null;
                     $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
 
                     return response()->json($result, 200);
@@ -769,7 +769,7 @@ class TelegramController extends Controller
                 $text .= "(กรุณาตอบ yes หรือ /cancel)\n";
                 cache()->put("chat_id_{$chat_id}_startNoteMemoDairy", 'confirm', now()->addMinutes(60));
                 cache()->put("chat_id_{$chat_id}_noteToday", $notetoday, now()->addMinutes(60));
-                $reply_to_message = $request->message['message_id'];
+                $reply_to_message = $request->message['message_id'] ?? null;
                 $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
 
             } elseif ($step === 'confirm') {
@@ -811,7 +811,7 @@ class TelegramController extends Controller
     public function generateDocument(Request $request)
     {
         $templateProcessor = new TemplateProcessor('word-template/user.docx');
-        $chat_id = $request->message['from']['id'];
+        $chat_id = $request->message['from']['id'] ?? null;
         $userInfo = $this->getUserInfo($chat_id);
         $memos = Memo::where('user_id', $chat_id)->get();
         $currentWeekStartDate = null;
@@ -850,8 +850,8 @@ class TelegramController extends Controller
     }
     public function editMemoDairy(Request $request)
     {
-        $chat_id = $request->message['from']['id'];
-        $reply_to_message = $request->message['message_id'];
+        $chat_id = $request->message['from']['id'] ?? null;
+        $reply_to_message = $request->message['message_id'] ?? null;
         $userMemo = $this->getUserMemo($chat_id);
         if ($userMemo['memo']) {
             $currentMemo = explode(', ', $userMemo['memo']);
@@ -874,8 +874,8 @@ class TelegramController extends Controller
     }
     public function addMemoDairy(Request $request)
     {
-        $chat_id = $request->message['from']['id'];
-        $reply_to_message = $request->message['message_id'];
+        $chat_id = $request->message['from']['id'] ?? null;
+        $reply_to_message = $request->message['message_id'] ?? null;
         $userMemo = $this->getUserMemo($chat_id);
         if ($userMemo['memo']) {
             $text = "สามารถพิมพ์ข้อความใดๆเพื่อเพิ่มบันทึกงานประจำวันได้เลยค่ะ\n";
@@ -895,8 +895,8 @@ class TelegramController extends Controller
     }
     public function memoDairy(Request $request)
     {
-        $chat_id = $request->message['from']['id'];
-        $reply_to_message = $request->message['message_id'];
+        $chat_id = $request->message['from']['id'] ?? null;
+        $reply_to_message = $request->message['message_id'] ?? null;
         $userMemo = $this->getUserMemo($chat_id);
         if (!$userMemo || !$userMemo['memo']) {
             $text = "สามารถพิมพ์ข้อความใดๆเพื่อจดบันทึกงานประจำวันได้เลยค่ะ\n";
@@ -924,8 +924,8 @@ class TelegramController extends Controller
     //reminder
     public function setReminder(Request $request)
     {
-        $chat_id = $request->message['from']['id'];
-        $reply_to_message = $request->message['message_id'];
+        $chat_id = $request->message['from']['id'] ?? null;
+        $reply_to_message = $request->message['message_id'] ?? null;
         $userInfo = $this->getReminder($chat_id);
         if ($userInfo['memo_time'] && $userInfo['summary_time']) {
             $text = "คุณตั้งค่าเวลาแจ้งเตือนจดบันทึกงานประจำวัน\n";
@@ -963,8 +963,8 @@ class TelegramController extends Controller
 
     public function editReminder(Request $request)
     {
-        $chat_id = $request->message['from']['id'];
-        $reply_to_message = $request->message['message_id'];
+        $chat_id = $request->message['from']['id'] ?? null;
+        $reply_to_message = $request->message['message_id'] ?? null;
         $text = "กรุณาเลือกประเภทการแจ้งเตือนเพื่อแก้ไขเวลา:\n";
         $text .= "1. แก้ไขเวลาแจ้งเตือนจดบันทึกงานประจำวัน\n";
         $text .= "2. แก้ไขเวลาแจ้งเตือนสรุปงานประจำวัน\n";
