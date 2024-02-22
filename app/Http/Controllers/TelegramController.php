@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\Memo;
 use Illuminate\Http\Request;
 use App\Services\TelegramBot;
+use function App\Helpers\processAction;
 
 class TelegramController extends Controller
 {
@@ -401,15 +402,21 @@ class TelegramController extends Controller
             if ($step === 'waiting_for_command') {
                 $memoMessage = $request->message['text'];
                 if ($memoMessage === '/end') {
-                    $currentMemo = cache()->get("chat_id_{$chat_id}_memoDaily");
-                    $formattedMemo = [];
-                    foreach ($currentMemo as $key => $memo) {
-                        $formattedMemo[] = ($key + 1) . ". " . $memo;
+                    $currentMemo = cache()->get("chat_id_{$chat_id}_memoDaily"); //case null
+                    if ($currentMemo !== null) {
+                        $formattedMemo = [];
+                        foreach ($currentMemo as $key => $memo) {
+                            $formattedMemo[] = ($key + 1) . ". " . $memo;
+                        }
+                        $text = "งานที่บันทึกในตอนนี้:\n" . implode("\n", $formattedMemo);
+                        $text .= "\nถูกต้องมั้ยคะ? (กรุณาตอบ yes หรือ /cancel)\n";
+                        app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
+                        cache()->put("chat_id_{$chat_id}_startAddMemoDairy", 'waiting_for_time', now()->addMinutes(60));
+                    } else {
+                        $text = "\nกรุณาเพิ่มบันทึกประจำวันใหม่อีกครั้ง\nเมื่อจดบันทึกครบแล้ว ให้พิมพ์ /end เพื่อจบการบันทึก";
+                        app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
+                        cache()->put("chat_id_{$chat_id}_startAddMemoDairy", 'waiting_for_command', now()->addMinutes(60));
                     }
-                    $text = "งานที่บันทึกในตอนนี้:\n" . implode("\n", $formattedMemo);
-                    $text .= "\nถูกต้องมั้ยคะ? (กรุณาตอบ yes หรือ /cancel)\n";
-                    app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
-                    cache()->put("chat_id_{$chat_id}_startMemoDairy", 'waiting_for_time', now()->addMinutes(60));
                 } else {
                     $memoMessages = cache()->get("chat_id_{$chat_id}_memoDaily", []);
                     $memoMessages[] = $memoMessage;
@@ -642,7 +649,6 @@ class TelegramController extends Controller
         if ($request->message['text'] === '/resetmemo') {
             $userInfo = $this->getUserInfo($chat_id);
             if ($userInfo) {
-
                 $userMemo = $this->getUserMemo($chat_id);
                 if ($userMemo['memo']) {
                     $memoArray = explode(', ', $userMemo['memo']);
@@ -692,7 +698,7 @@ class TelegramController extends Controller
         if ($request->message['text'] === '/resetnotetoday') {
             $userInfo = $this->getUserInfo($chat_id);
             if ($userInfo) {
-                $userMemo = $this->getUserMemo($chat_id);
+                $userMemo = $this->getUserMemo($chat_id);//check ว่า ถ้าไม่เคยบันทึกเลยในวันนี้
                 if ($userMemo['note_today']) {
                     $text = "หมายเหตุประจำวันตอนนี้:\n{$userMemo['note_today']}";
                     $text .= "\nคุณต้องการล้างหมายเหตุประจำวันเพื่อเริ่มจดบันทึกใหม่หรือไม่?";
@@ -700,7 +706,7 @@ class TelegramController extends Controller
                     cache()->put("chat_id_{$chat_id}_startResetnotetoday", true, now()->addMinutes(60));
                     $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
                     return response()->json($result, 200);
-                } else {
+                } elseif (!$userMemo['note_today']) {
                     $text = "คุณยังไม่ได้เพิ่มหมายเหตุประจำวัน!\n";
                     $text .= "กรุณา /notetoday เพิ่มหมายเหตุประจำวัน";
                     $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
@@ -803,45 +809,47 @@ class TelegramController extends Controller
         if ($request->message['text'] === '/generateDoc') {
             $documentPath = $this->generateDocument($request);
             $result = app('telegram_bot')->sendDocument($chat_id, $documentPath);
-            // $result = app('telegram_bot')->sendDocument($chat_id, "C:".DIRECTORY_SEPARATOR."xampp\htdocs\memo-bot\public\word-send\memo.docx");
             return response()->json($result, 200);
         }
     }
 
     public function generateDocument(Request $request)
-    {
-        $templateProcessor = new TemplateProcessor('word-template/user.docx');
-        $chat_id = $request->message['from']['id'] ?? null;
-        $userInfo = $this->getUserInfo($chat_id);
-        $memos = Memo::where('user_id', $chat_id)->get();
-        $currentWeekStartDate = null;
-        $currentWeekNumber = 0;
-        foreach ($memos as $memo) {
-            $memoDate = Carbon::parse($memo->memo_date);
-            if (!$currentWeekStartDate || !$memoDate->isSameWeek($currentWeekStartDate, Carbon::MONDAY)) {
-                $currentWeekStartDate = $memoDate;
-                $currentWeekNumber++;
-            }
-            $weekdayIndex = $memoDate->dayOfWeekIso;
-            $templateProcessor->setValue("number_of_week", $currentWeekNumber);
-            $templateProcessor->setValue("memo_date_$weekdayIndex", $memo->memo_date);
-            $templateProcessor->setValue("memo[0]_$weekdayIndex", $this->getMemo($memo->memo, 0));
-            $templateProcessor->setValue("memo[1]_$weekdayIndex", $this->getMemo($memo->memo, 1));
-            $templateProcessor->setValue("memo[2]_$weekdayIndex", $this->getMemo($memo->memo, 2));
-            $templateProcessor->setValue("memo[3]_$weekdayIndex", $this->getMemo($memo->memo, 3));
-            $templateProcessor->setValue("memo[4]_$weekdayIndex", $this->getMemo($memo->memo, 4));
-            $templateProcessor->setValue("note_today_$weekdayIndex", $memo->note_today);
-        }
-        $directory = 'word-send';
-        $fileName = $userInfo['student_id'].'_week'.$currentWeekNumber.'_memo.docx';
-        $filePath = public_path($directory . DIRECTORY_SEPARATOR . $fileName);
-    
-        if (!file_exists(public_path($directory))) {
-            mkdir(public_path($directory), 0777, true);
-        }
-        $templateProcessor->saveAs($filePath);
-        return $filePath;
+{
+    $chat_id = $request->message['from']['id'] ?? null;
+    $userInfo = $this->getUserInfo($chat_id);
+    $directory = 'word-send';
+
+    if (!file_exists(public_path($directory))) {
+        mkdir(public_path($directory), 0777, true);
     }
+
+    $templateProcessor = new TemplateProcessor('word-template/user.docx');
+    $currentWeekNumber = 0;
+
+    $memos = Memo::where('user_id', $chat_id)->get();
+
+    foreach ($memos as $memo) {
+        $memoDate = Carbon::parse($memo->memo_date);
+        $weekNumber = $memoDate->weekOfYear;
+
+        if ($weekNumber > $currentWeekNumber) {
+            $currentWeekNumber = $weekNumber;
+        }
+
+        $weekdayIndex = $memoDate->dayOfWeekIso;
+        $templateProcessor->setValue("memo_date_$weekdayIndex", $memo->memo_date);
+        for ($i = 0; $i < 5; $i++) {
+            $templateProcessor->setValue("memo[$i]_$weekdayIndex", $this->getMemo($memo->memo, $i));
+        }
+        $templateProcessor->setValue("note_today_$weekdayIndex", $memo->note_today);
+    }
+
+    $fileName = $userInfo['student_id'] . '_week' . $currentWeekNumber . '_memo.docx';
+    $filePath = public_path($directory . DIRECTORY_SEPARATOR . $fileName);
+    $templateProcessor->saveAs($filePath);
+
+    return $filePath;
+}
 
     private function getMemo($memo, $index)
     {
@@ -853,7 +861,12 @@ class TelegramController extends Controller
         $chat_id = $request->message['from']['id'] ?? null;
         $reply_to_message = $request->message['message_id'] ?? null;
         $userMemo = $this->getUserMemo($chat_id);
-        if ($userMemo['memo']) {
+        if (!$userMemo || !$userMemo['memo'] || (!$userMemo['memo'] && !$userMemo['note_today'])) {
+            $text = "คุณยังไม่ได้จดบันทึกงานประจำวัน!\n";
+            $text .= "กรุณา /memo เพื่อเริ่มจดบันทึกประจำวัน";
+            $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
+            return response()->json($result, 200);
+        } elseif ($userMemo['memo']) {
             $currentMemo = explode(', ', $userMemo['memo']);
             $formattedMemo = [];
             foreach ($currentMemo as $key => $memo) {
@@ -864,12 +877,6 @@ class TelegramController extends Controller
             cache()->put("chat_id_{$chat_id}_editMemoDairy", 'waiting_for_command', now()->addMinutes(60));
             $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
             return response()->json($result, 200);
-        } else {
-            $text = "คุณยังไม่ได้จดบันทึกงานประจำวัน!\n";
-            $text .= "กรุณา /memo เพื่อเริ่มจดบันทึกประจำวัน";
-            $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
-
-            return response()->json($result, 200);
         }
     }
     public function addMemoDairy(Request $request)
@@ -877,21 +884,19 @@ class TelegramController extends Controller
         $chat_id = $request->message['from']['id'] ?? null;
         $reply_to_message = $request->message['message_id'] ?? null;
         $userMemo = $this->getUserMemo($chat_id);
-        if ($userMemo['memo']) {
+        if (!$userMemo || !$userMemo['memo'] || (!$userMemo['memo'] && !$userMemo['note_today'])) {
+            $text = "คุณยังไม่ได้จดบันทึกงานประจำวัน!\n";
+            $text .= "กรุณา /memo เพื่อเริ่มจดบันทึกประจำวัน";
+            $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
+            return response()->json($result, 200);
+        } elseif ($userMemo['memo']) {
             $text = "สามารถพิมพ์ข้อความใดๆเพื่อเพิ่มบันทึกงานประจำวันได้เลยค่ะ\n";
             $text .= "ยกตัวอย่าง 'Create function CRUD'\n";
             $text .= "เมื่อจดบันทึกครบแล้ว ให้พิมพ์ /end เพื่อจบการบันทึก\n";
             $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
             cache()->put("chat_id_{$chat_id}_startAddMemoDairy", 'waiting_for_command', now()->addMinutes(60));
             return response()->json($result, 200);
-        } else {
-            $text = "คุณยังไม่ได้จดบันทึกงานประจำวัน!\n";
-            $text .= "กรุณา /memo เพื่อเริ่มจดบันทึกประจำวัน";
-            $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
-
-            return response()->json($result, 200);
         }
-
     }
     public function memoDairy(Request $request)
     {

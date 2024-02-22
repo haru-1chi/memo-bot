@@ -50,9 +50,15 @@ class SendSummaryMessages extends Command
                     $summaryTime = Carbon::createFromFormat('H:i:s', $user->summary_time)->format('H:i');
                     $currentTimeFormatted = $currentTime->format('H:i');
                     if ($currentTimeFormatted === $summaryTime) {
-
                         $userMemo = $this->getUserMemo($user->telegram_chat_id);
-                        if ($userMemo['memo']) {
+                        if (!$userMemo || (!$userMemo['memo'] && !$userMemo['note_today'])) {
+                            $text = "สรุปงานที่ได้ทำในวันนี้:\n";
+                            $text = "คุณยังไม่ได้จดบันทึกงานประจำวัน!\n";
+                            $text .= "กรุณา /memo เพื่อเริ่มจดบันทึกประจำวัน\n\n";
+                            $text .= "หรือหากวันนี้ลาหยุด หรือเป็นวันหยุดราชการ ให้พิมพ์ /notetoday เพื่อเพิ่มหมายเหตุวันนี้\n";
+                            $text .= "กรุณาจดบันทึกก่อนเวลา 23:59 น. ของวันนี้ด้วยนะ";
+                            $this->sendMessageToUser($user->telegram_chat_id, $text);
+                        } elseif ($userMemo['memo']) {
                             $memoArray = explode(', ', $userMemo['memo']);
                             $formattedMemo = [];
                             foreach ($memoArray as $key => $memo) {
@@ -86,16 +92,9 @@ class SendSummaryMessages extends Command
                             $text .= "   /resetmemo - ล้างบันทึกงานประจำวัน\n";
                             $text .= "   /resetnotetoday - ล้างหมายเหตุประจำวัน\n\n";
                             $this->sendMessageToUser($user->telegram_chat_id, $text);
-                        } elseif (empty($userMemo['memo'] && $userMemo['note_today'])) {
-                            $text = "สรุปงานที่ได้ทำในวันนี้:\n";
-                            $text = "คุณยังไม่ได้จดบันทึกงานประจำวัน!\n";
-                            $text .= "กรุณา /memo เพื่อเริ่มจดบันทึกประจำวัน\n\n";
-                            $text .= "หรือหากวันนี้ลาหยุด หรือเป็นวันหยุดราชการ ให้พิมพ์ /notetoday เพื่อเพิ่มหมายเหตุวันนี้\n";
-                            $text .= "กรุณาจดบันทึกก่อนเวลา 23:59 น. ของวันนี้ด้วยนะ";
-                            $this->sendMessageToUser($user->telegram_chat_id, $text);
                         }
                     }
-                } else {
+                } elseif (!$user->$summaryTime && $currentTime->format('H:i') === '18:00') {
                     $text = "นี่เป็นข้อความแจ้งเตือนสรุปงานประจำวันเบื้องต้น\n";
                     $text .= "กรุณา /setreminder เพื่อตั้งค่าการแจ้งเตือน\n\n";
                     $text .= "อย่าลืมตั้งค่าเวลาแจ้งเตือนสรุปงานประจำวันด้วยนะ\n";
