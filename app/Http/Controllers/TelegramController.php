@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpWord\TemplateProcessor;
 use PhpOffice\PhpWord\Element\Section;
 use PhpOffice\PhpWord\PhpWord;
@@ -23,11 +24,19 @@ class TelegramController extends Controller
     }
     public function inbound(Request $request)
     {
-        // \Log::info($request->all());
+        Log::info($request->all());
         $chat_id = $request->message['from']['id'] ?? null;
         $reply_to_message = $request->message['message_id'] ?? null;
-        // \Log::info("chat_id: {$chat_id}");
-        // \Log::info("reply_to_message: {$reply_to_message}");
+        Log::info("chat_id: {$chat_id}");
+        Log::info("reply_to_message: {$reply_to_message}");
+
+        if ($request->message['text'] === '/cancel') {
+            Cache::flush();
+            // cache()->forget("chat_id_{$chat_id}_start_set_info");
+            // cache()->forget("chat_id_{$chat_id}_start_edit_info");
+            app('telegram_bot')->sendMessage("ยกเลิกคำสั่งปัจจุบันเรียบร้อยแล้ว", $chat_id, $reply_to_message);
+            return;
+        }
 
         if ($request->message['text'] === '/start' || $request->message['text'] === '/help') {
             $chat_id = $request->message['from']['id'];
@@ -286,8 +295,6 @@ class TelegramController extends Controller
         if ($request->message['text'] === '/getreminder') {
             $user_info = $this->getUserInfo($chat_id);
             if ($user_info) {
-                $user_info = $this->getReminder($chat_id);
-
                 if (!empty($user_info['memo_time'] && $user_info['summary_time'])) {
                     $memo_time = Carbon::createFromFormat('H:i:s', $user_info['memo_time'])->format('H:i');
                     $summary_time = Carbon::createFromFormat('H:i:s', $user_info['summary_time'])->format('H:i');
@@ -527,9 +534,9 @@ class TelegramController extends Controller
             }
         }
 
-        if (cache()->has("chat_id_{$chat_id}_edit_memo_dairy")) {
-            $step = cache()->get("chat_id_{$chat_id}_edit_memo_dairy");
-            $select = cache()->get("chat_id_{$chat_id}_select_choice_edit");
+        if (cache()->has("chat_id_{$chat_id}_start_edit_memo_dairy")) {
+            $step = cache()->get("chat_id_{$chat_id}_start_edit_memo_dairy");
+            $select = cache()->get("chat_id_{$chat_id}_select_choice_edit_memo");
             $user_memo = $this->getUserMemo($chat_id);
             $memo_messages = explode(', ', $user_memo['memo']);
 
@@ -539,18 +546,18 @@ class TelegramController extends Controller
                     $text = "สามารถพิมพ์ข้อความเพื่อแก้ไขงานประจำวันได้เลยค่ะ\n";
                     $text .= "(สามารถแก้ไขได้เพียงข้อที่เลือก)\n";
                     $text .= "'Create function CRUD'\n";
-                    cache()->put("chat_id_{$chat_id}_edit_memo_dairy", 'updated', now()->addMinutes(60));
-                    cache()->put("chat_id_{$chat_id}_select_choice_edit", $selected_index, now()->addMinutes(60));
+                    cache()->put("chat_id_{$chat_id}_start_edit_memo_dairy", 'updated', now()->addMinutes(60));
+                    cache()->put("chat_id_{$chat_id}_select_choice_edit_memo", $selected_index, now()->addMinutes(60));
                     $reply_to_message = $request->message['message_id'] ?? null;
                     $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
 
                     return response()->json($result, 200);
                 }
             } elseif ($step === 'updated') {
-                $select = cache()->get("chat_id_{$chat_id}_select_choice_edit");
+                $select = cache()->get("chat_id_{$chat_id}_select_choice_edit_memo");
                 $memo_messages[$select - 1] = $request->message['text'];
-                cache()->put("chat_id_{$chat_id}_memo_daily", $memo_messages, now()->addMinutes(60));
-                $current_memo = cache()->get("chat_id_{$chat_id}_memo_daily");
+                cache()->put("chat_id_{$chat_id}_edit_memo_dairy", $memo_messages, now()->addMinutes(60));
+                $current_memo = cache()->get("chat_id_{$chat_id}_edit_memo_dairy");
                 $formatted_memo = [];
                 foreach ($current_memo as $key => $memo) {
                     $formatted_memo[] = ($key + 1) . ". " . $memo;
@@ -558,13 +565,13 @@ class TelegramController extends Controller
                 $text = "งานที่บันทึกในตอนนี้:\n" . implode("\n", $formatted_memo);
                 $text .= "\nถูกต้องมั้ยคะ? (กรุณาตอบ yes หรือ /cancel)\n";
                 app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
-                cache()->put("chat_id_{$chat_id}_edit_memo_dairy", 'waiting_for_time', now()->addMinutes(60));
+                cache()->put("chat_id_{$chat_id}_start_edit_memo_dairy", 'waiting_for_time', now()->addMinutes(60));
             } elseif ($step === 'waiting_for_time') {
                 $confirmation_text = 'yes';
                 $text_reply = '';
                 $text = $request->message['text'];
                 if ($text === $confirmation_text) {
-                    $current_memo = cache()->get("chat_id_{$chat_id}_memo_daily");
+                    $current_memo = cache()->get("chat_id_{$chat_id}_edit_memo_dairy");
 
                     if (!empty($current_memo)) {
                         $formatted_memo = implode(', ', $current_memo);
@@ -581,9 +588,9 @@ class TelegramController extends Controller
                 } else {
                     app('telegram_bot')->sendMessage("กรุณาตอบด้วย 'yes' หรือ '/cancel' เท่านั้นค่ะ", $chat_id, $reply_to_message);
                 }
-                cache()->forget("chat_id_{$chat_id}_memo_daily");
                 cache()->forget("chat_id_{$chat_id}_edit_memo_dairy");
-                cache()->forget("chat_id_{$chat_id}_select_choice_edit");
+                cache()->forget("chat_id_{$chat_id}_start_edit_memo_dairy");
+                cache()->forget("chat_id_{$chat_id}_select_choice_edit_memo");
             }
         }
 //resetmemo
@@ -1008,7 +1015,7 @@ class TelegramController extends Controller
             }
             $text = "กรุณาเลือกบันทึกที่ต้องการแก้ไข:\n" . implode("\n", $formatted_memo);
             $text .= "\nกรุณาตอบเพียงตัวเลขเดียวเท่านั้น ";
-            cache()->put("chat_id_{$chat_id}_edit_memo_dairy", 'waiting_for_command', now()->addMinutes(60));
+            cache()->put("chat_id_{$chat_id}_start_edit_memo_dairy", 'waiting_for_command', now()->addMinutes(60));
             $result = app('telegram_bot')->sendMessage($text, $chat_id, $reply_to_message);
             return response()->json($result, 200);
         }
@@ -1065,7 +1072,7 @@ class TelegramController extends Controller
     {
         $chat_id = $request->message['from']['id'] ?? null;
         $reply_to_message = $request->message['message_id'] ?? null;
-        $user_info = $this->getReminder($chat_id);
+        $user_info = $this->getUserInfo($chat_id);
         if ($user_info['memo_time'] && $user_info['summary_time']) {
             $text = "คุณตั้งค่าเวลาแจ้งเตือนจดบันทึกงานประจำวัน\n";
             $text .= "และตั้งค่าเวลาสรุปงานประจำวัน เรียบร้อยแล้ว!\n";
@@ -1213,11 +1220,6 @@ class TelegramController extends Controller
         } else {
             app('telegram_bot')->sendMessage("กรุณาตอบด้วย 'yes' หรือ '/cancel' เท่านั้นค่ะ", $chat_id, $reply_to_message);
         }
-    }
-    public function getReminder($telegram_chat_id)
-    {
-        $user_reminder = User::where('telegram_chat_id', $telegram_chat_id)->first();
-        return $user_reminder;
     }
 
     //memo
