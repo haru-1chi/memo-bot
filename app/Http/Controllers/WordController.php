@@ -47,8 +47,8 @@ class WordController extends Controller
 
     public function downloadDocx()
     {
-        $documentPath = $this->generateDocument();
-        return response()->download($documentPath, 'memo_week.docx');
+        // $documentPath = $this->generateDocument();
+        // return response()->download($documentPath, 'memo_week.docx');
     }
 
 
